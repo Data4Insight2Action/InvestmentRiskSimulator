@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Investment Risk Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <h1>Investment Risk Simulator</h1>
+      <p class="lede">
+        A GIC or savings account grows along a steady, predictable line. An investment in a security
+        usually grows more over time, but it gets there with ups and downs, and nobody knows in
+        advance where it will end up. This simulator plays out many possible futures so you can see
+        the range of outcomes over 10 years.
+      </p>
+    </header>
+
+    <div class="layout">
+      <form id="inputs" class="panel inputs" novalidate>
+        <h2>Settings</h2>
+
+        <div class="fixed-settings">
+          <p>Starting amount: <strong>$10,000</strong></p>
+          <p>Time horizon: <strong>10 years</strong></p>
+        </div>
+
+        <fieldset>
+          <legend>GIC / savings account</legend>
+          <div class="field">
+            <label for="gicRate">Interest rate (% per year)</label>
+            <input id="gicRate" type="number" inputmode="decimal" min="0.01" max="10" step="0.01" value="4.55"
+                   aria-describedby="gicRate-hint gicRate-error">
+            <p class="hint" id="gicRate-hint">0.01% – 10.00%, guaranteed every year</p>
+            <p class="error" id="gicRate-error" aria-live="polite"></p>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Security (e.g. a fund or stock)</legend>
+          <div class="field">
+            <div class="label-row">
+              <label for="mean">Average annual return (%)</label>
+              <button type="button" class="help-btn" aria-haspopup="dialog" aria-controls="metricsDialog"
+                      aria-label="How to find your portfolio's average annual return" title="How to find this number">?</button>
+            </div>
+            <!-- No inputmode="decimal": the iPhone decimal keypad has no minus key. -->
+            <input id="mean" type="number" min="-150" max="150" step="0.01" value="8.50"
+                   aria-describedby="mean-hint mean-error">
+            <p class="hint" id="mean-hint">−150.00% to 150.00%, the expected return in a typical year</p>
+            <p class="error" id="mean-error" aria-live="polite"></p>
+          </div>
+          <div class="field">
+            <div class="label-row">
+              <label for="sd">Standard deviation (%)</label>
+              <button type="button" class="help-btn" aria-haspopup="dialog" aria-controls="metricsDialog"
+                      aria-label="How to find your portfolio's standard deviation" title="How to find this number">?</button>
+            </div>
+            <input id="sd" type="number" inputmode="decimal" min="0" max="150" step="0.01" value="9.50"
+                   aria-describedby="sd-hint sd-error">
+            <p class="hint" id="sd-hint">0.00% to 150.00%, how much returns swing from year to year</p>
+            <p class="error" id="sd-error" aria-live="polite"></p>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Simulation</legend>
+          <div class="field">
+            <label for="count">Number of simulations</label>
+            <input id="count" type="number" inputmode="numeric" min="1" max="10000" step="1" value="5000"
+                   aria-describedby="count-hint count-error">
+            <p class="hint" id="count-hint">1 – 10,000 possible futures</p>
+            <p class="error" id="count-error" aria-live="polite"></p>
+            <div class="explain">
+              <p class="explain-title">Do more simulations give a better prediction?</p>
+              <p>
+                Partly. Each simulation is one possible future. With only a few, the worst, typical and best
+                cases jump around every time you click Run. Rare bad outcomes are also easy to miss, so the
+                worst case can look better than it really is. More simulations make these numbers steadier:
+                4 times as many simulations cut the jumpiness about in half.
+              </p>
+              <p>
+                But more simulations can’t make the forecast more accurate than the numbers you enter. If the
+                future doesn’t match the average return and standard deviation you chose, no number of
+                simulations will fix that.
+              </p>
+            </div>
+          </div>
+        </fieldset>
+
+        <button type="submit" id="run" class="run-button">Run simulation</button>
+        <p id="stale" class="stale" hidden>Settings changed. Run the simulation to update the results.</p>
+      </form>
+
+      <section class="panel chart-panel" aria-labelledby="chart-title">
+        <h2 id="chart-title">Growth of <span id="chart-start">$10,000</span> over 10 years</h2>
+        <div class="chart-wrap" id="chart-wrap">
+          <canvas id="chart" role="img" aria-label="Simulation chart"></canvas>
+        </div>
+        <p class="chart-note">
+          Each thin grey line is one simulation of the security; the solid line is the GIC / savings account.
+          Dashed lines mark where the security ended after 10 years. Only 5% of simulations ended above the
+          95th percentile, half ended above the median, and 5% ended below the 5th percentile. Max and Min
+          show the single highest and lowest result.
+        </p>
+        <div class="hist-block">
+          <h3 class="hist-title">Where the simulations ended after 10 years</h3>
+          <div class="hist-wrap" id="hist-wrap">
+            <canvas id="hist" role="img" aria-label="Histogram of results after 10 years"></canvas>
+          </div>
+          <p class="chart-note" id="hist-note"></p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel results" aria-labelledby="results-title">
+      <h2 id="results-title">After 10 years</h2>
+      <div class="tiles">
+        <div class="tile">
+          <p class="tile-label"><span class="dot dot-gic" aria-hidden="true"></span>GIC / savings</p>
+          <p class="tile-value" id="tile-gic">–</p>
+          <p class="tile-delta" id="tile-gic-delta"></p>
+        </div>
+        <div class="tile">
+          <p class="tile-label"><span class="dot dot-p5" aria-hidden="true"></span>Worst case (5th percentile)</p>
+          <p class="tile-value" id="tile-p5">–</p>
+          <p class="tile-delta" id="tile-p5-delta"></p>
+        </div>
+        <div class="tile">
+          <p class="tile-label"><span class="dot dot-p50" aria-hidden="true"></span>Typical (median)</p>
+          <p class="tile-value" id="tile-p50">–</p>
+          <p class="tile-delta" id="tile-p50-delta"></p>
+        </div>
+        <div class="tile">
+          <p class="tile-label"><span class="dot dot-p95" aria-hidden="true"></span>Best case (95th percentile)</p>
+          <p class="tile-value" id="tile-p95">–</p>
+          <p class="tile-delta" id="tile-p95-delta"></p>
+        </div>
+      </div>
+      <ul class="facts" id="facts"></ul>
+    </section>
+  </main>
+
+  <dialog class="metrics-dialog" id="metricsDialog" aria-labelledby="metricsTitle">
+    <div class="md-body">
+      <div class="md-head">
+        <h2 id="metricsTitle">Ask an AI assistant for your portfolio’s metrics</h2>
+        <button type="button" class="md-close" id="metricsClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="md-text">Copy the question below, fill in your holdings, and ask any AI assistant. It will give you the two numbers to enter here.</p>
+      <div class="md-quote">
+        <p id="mdTemplate">“I hold a portfolio of [Percentage]% [Ticker/Company], [Percentage]% [Ticker/Company], and [Percentage]% [Ticker/Company]. Based on [Number] years of historical data, what are my portfolio’s average annual total return (including dividends) and standard deviation?”</p>
+        <button type="button" class="md-copy" data-copy="mdTemplate">Copy</button>
+      </div>
+      <p class="md-text"><b>Note:</b> You can include as many holdings as you like. Just make sure the weights add up to 100% and the tickers or company names are valid.</p>
+      <p class="md-text"><b>Limits:</b> This simulator accepts −150.00% to 150.00% for the average annual return and 0.00% to 150.00% for the standard deviation.</p>
+      <p class="md-text"><b>Examples:</b></p>
+      <p class="md-sub">Single holding:</p>
+      <div class="md-quote">
+        <p id="mdEx1">“I have a portfolio of 100% VFV.TO. Using 8 years of history, what are my portfolio’s average annual total return (including dividends) and standard deviation?”</p>
+        <button type="button" class="md-copy" data-copy="mdEx1">Copy</button>
+      </div>
+      <p class="md-sub">Multi-asset allocation:</p>
+      <div class="md-quote">
+        <p id="mdEx2">“I have a portfolio of 40% Royal Bank, 35% Enbridge, and 25% Telus. Using 10 years of history, what are my portfolio’s average annual total return (including dividends) and standard deviation?”</p>
+        <button type="button" class="md-copy" data-copy="mdEx2">Copy</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="js/simulation.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/histogram.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/metrics-help.js"></script>
+</body>
+</html>
