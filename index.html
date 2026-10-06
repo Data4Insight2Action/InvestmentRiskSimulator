@@ -4,7 +4,575 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Investment Risk Simulator</title>
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f9f9f7;
+      --surface: #fcfcfb;
+      --ink: #0b0b0b;
+      --ink-2: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --border: rgba(11, 11, 11, 0.10);
+      --field-border: #c3c2b7;
+      --path: #2f2e2b;
+      --extreme: #52514e;
+      --bar: #a3a29b;
+      --gic: #0b0b0b;
+      --p95: #1baf7a;
+      --p50: #2a78d6;
+      --p5: #eb6834;
+      --button: #256abf;
+      --button-hover: #1c5cab;
+      --button-text: #ffffff;
+      --focus: #2a78d6;
+      --up-text: #006300;
+      --down-text: #c02f2f;
+      --error: #c02f2f;
+      --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --page: #0d0d0d;
+        --surface: #1a1a19;
+        --ink: #ffffff;
+        --ink-2: #c3c2b7;
+        --muted: #898781;
+        --grid: #2c2c2a;
+        --axis: #383835;
+        --border: rgba(255, 255, 255, 0.10);
+        --field-border: #4a4a46;
+        --path: #e1e0d9;
+        --extreme: #c3c2b7;
+        --bar: #6b6a66;
+        --gic: #ffffff;
+        --p95: #199e70;
+        --p50: #3987e5;
+        --p5: #d95926;
+        --button: #3987e5;
+        --button-hover: #5598e7;
+        --button-text: #0b0b0b;
+        --focus: #6da7ec;
+        --up-text: #0ca30c;
+        --down-text: #e66767;
+        --error: #e66767;
+      }
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    h1, h2, p {
+      margin: 0;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    /* ---------- Header ---------- */
+
+    .app-header {
+      margin-bottom: 20px;
+    }
+
+    .app-header h1 {
+      font-size: 26px;
+      line-height: 1.2;
+      font-weight: 650;
+      margin-bottom: 8px;
+    }
+
+    .lede {
+      color: var(--ink-2);
+    }
+
+    /* ---------- Layout ---------- */
+
+    .layout {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .panel h2 {
+      font-size: 16px;
+      font-weight: 650;
+      margin-bottom: 12px;
+    }
+
+    /* ---------- Inputs ---------- */
+
+    fieldset {
+      border: 0;
+      margin: 0 0 16px;
+      padding: 0;
+      min-width: 0;
+    }
+
+    legend {
+      padding: 0;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+
+    .field + .field {
+      margin-top: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-weight: 550;
+      margin-bottom: 4px;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .label-row label {
+      margin-bottom: 0;
+    }
+
+    .help-btn {
+      position: relative;
+      flex: none;
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 1px solid var(--field-border);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--ink-2);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    /* Enlarges the click target beyond the small visible circle. */
+    .help-btn::before {
+      content: "";
+      position: absolute;
+      inset: -5px;
+    }
+
+    .help-btn:hover {
+      background: var(--button);
+      border-color: var(--button);
+      color: var(--button-text);
+    }
+
+    .field input {
+      width: 100%;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+      background: var(--page);
+      border: 1px solid var(--field-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .field input:focus-visible,
+    .run-button:focus-visible,
+    .help-btn:focus-visible,
+    .md-close:focus-visible,
+    .md-copy:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .field input[aria-invalid="true"] {
+      border-color: var(--error);
+    }
+
+    .hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .error {
+      font-size: 13px;
+      color: var(--error);
+      font-weight: 550;
+    }
+
+    .error:not(:empty) {
+      margin-top: 4px;
+    }
+
+    .fixed-settings {
+      margin-bottom: 16px;
+      color: var(--ink-2);
+    }
+
+    .fixed-settings p + p {
+      margin-top: 2px;
+    }
+
+    .explain {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--page);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+
+    .explain p + p {
+      margin-top: 6px;
+    }
+
+    .explain .explain-title {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .run-button {
+      width: 100%;
+      font: inherit;
+      font-weight: 600;
+      color: var(--button-text);
+      background: var(--button);
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 16px;
+      cursor: pointer;
+    }
+
+    .run-button:hover:not(:disabled) {
+      background: var(--button-hover);
+    }
+
+    .run-button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .stale {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+
+    /* ---------- Chart ---------- */
+
+    /* The chart panel matches the settings panel's height. The space left after the text is split
+       3 : 2 between the line chart and the histogram block (no margins on the block, so the split
+       stays exact). */
+    .chart-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-wrap {
+      position: relative;
+      flex: 3 1 0;
+      min-height: 192px;
+    }
+
+    .hist-block {
+      flex: 2 1 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 230px;
+    }
+
+    .hist-title {
+      margin: 16px 0 8px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .hist-wrap {
+      position: relative;
+      flex: 1 1 0;
+      min-height: 150px;
+    }
+
+    /* Absolutely positioned so the canvas's own pixel size never feeds back into the layout. */
+    .chart-wrap canvas,
+    .hist-wrap canvas {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart-note {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ---------- Results ---------- */
+
+    .results {
+      margin-top: 16px;
+    }
+
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .tile {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .tile-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+
+    .tile-value {
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1.25;
+      margin-top: 4px;
+    }
+
+    .tile-delta {
+      font-size: 13px;
+      font-weight: 550;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-2);
+    }
+
+    .tile-delta.up { color: var(--up-text); }
+    .tile-delta.down { color: var(--down-text); }
+
+    .dot {
+      flex: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-gic { background: var(--gic); }
+    .dot-p95 { background: var(--p95); }
+    .dot-p50 { background: var(--p50); }
+    .dot-p5  { background: var(--p5); }
+
+    .facts {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--ink-2);
+    }
+
+    .facts li + li {
+      margin-top: 6px;
+    }
+
+    .facts strong {
+      color: var(--ink);
+    }
+
+    /* ---------- Metrics help card ---------- */
+
+    .metrics-dialog {
+      width: min(520px, calc(100% - 32px));
+      max-width: none;
+      max-height: calc(100vh - 32px);
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+    }
+
+    .metrics-dialog::backdrop {
+      background: rgba(10, 16, 20, 0.45);
+    }
+
+    .md-body {
+      padding: 18px 18px 16px;
+    }
+
+    .md-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .md-head h2 {
+      font-size: 16px;
+      font-weight: 650;
+    }
+
+    .md-close {
+      flex: none;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+
+    .md-close:hover {
+      color: var(--ink);
+      background: var(--page);
+    }
+
+    .md-text {
+      font-size: 13.5px;
+      color: var(--ink-2);
+      margin: 12px 0 4px;
+    }
+
+    .md-text b {
+      color: var(--ink);
+    }
+
+    .md-sub {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 10px 0 4px;
+    }
+
+    .md-quote {
+      position: relative;
+      background: var(--page);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 76px 10px 12px;
+    }
+
+    .md-quote p {
+      font-size: 13.5px;
+    }
+
+    .md-copy {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 3px 10px;
+      border: 1px solid var(--button);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .md-copy:hover {
+      background: var(--button);
+      color: var(--button-text);
+    }
+
+    /* ---------- Narrow screens ---------- */
+
+    @media (max-width: 860px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .chart-wrap {
+        flex: none;
+        height: 264px;
+      }
+
+      .hist-block {
+        flex: none;
+      }
+
+      .hist-wrap {
+        flex: none;
+        height: 240px;
+      }
+
+      .tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        padding-top: 16px;
+      }
+
+      .app-header h1 {
+        font-size: 22px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .chart-wrap {
+        height: 204px;
+      }
+
+      .hist-wrap {
+        height: 200px;
+      }
+
+      .tile-value {
+        font-size: 22px;
+      }
+    }
+  </style>
 </head>
 <body>
   <main class="app">
@@ -170,10 +738,866 @@
     </div>
   </dialog>
 
-  <script src="js/simulation.js"></script>
-  <script src="js/chart.js"></script>
-  <script src="js/histogram.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/metrics-help.js"></script>
+  <script>
+    /*
+     * Monte Carlo simulation engine.
+     * One data point per year: index 0 is the starting amount, index `years` is the final value.
+     */
+    (function () {
+      "use strict";
+
+      // Standard normal sampler (Box-Muller). Generates two values per call pair; caches the spare.
+      var spare = null;
+      function randomNormal() {
+        if (spare !== null) {
+          var s = spare;
+          spare = null;
+          return s;
+        }
+        var u = 0, v = 0;
+        while (u === 0) u = Math.random(); // avoid log(0)
+        v = Math.random();
+        var mag = Math.sqrt(-2 * Math.log(u));
+        spare = mag * Math.sin(2 * Math.PI * v);
+        return mag * Math.cos(2 * Math.PI * v);
+      }
+
+      // Guaranteed growth: compounded once per year at a fixed rate.
+      function gicPath(start, rate, years) {
+        var path = new Array(years + 1);
+        for (var y = 0; y <= years; y++) path[y] = start * Math.pow(1 + rate, y);
+        return path;
+      }
+
+      // Each year's return is drawn from Normal(mean, sd); value is multiplied by (1 + return).
+      // Returns are floored at -100% so a value can never go negative.
+      function simulatePaths(start, mean, sd, years, count) {
+        var paths = new Array(count);
+        for (var i = 0; i < count; i++) {
+          var path = new Array(years + 1);
+          path[0] = start;
+          for (var y = 1; y <= years; y++) {
+            var r = Math.max(-1, mean + sd * randomNormal());
+            path[y] = path[y - 1] * (1 + r);
+          }
+          paths[i] = path;
+        }
+        return paths;
+      }
+
+      // Percentile of an ascending-sorted array, linear interpolation between ranks
+      // (same method as Excel PERCENTILE.INC). p is in [0, 1].
+      function percentile(sorted, p) {
+        if (sorted.length === 1) return sorted[0];
+        var rank = p * (sorted.length - 1);
+        var lo = Math.floor(rank);
+        var hi = Math.ceil(rank);
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
+      }
+
+      function run(params) {
+        var gic = gicPath(params.start, params.gicRate, params.years);
+        var paths = simulatePaths(params.start, params.mean, params.sd, params.years, params.count);
+
+        var finals = paths.map(function (p) { return p[params.years]; });
+        var sorted = finals.slice().sort(function (a, b) { return a - b; });
+        var gicFinal = gic[params.years];
+
+        var belowGic = 0, belowStart = 0;
+        for (var i = 0; i < finals.length; i++) {
+          if (finals[i] < gicFinal) belowGic++;
+          if (finals[i] < params.start) belowStart++;
+        }
+
+        return {
+          params: params,
+          gic: gic,
+          paths: paths,
+          gicFinal: gicFinal,
+          finals: sorted, // year-10 values, ascending
+          p5: percentile(sorted, 0.05),
+          p50: percentile(sorted, 0.5),
+          p95: percentile(sorted, 0.95),
+          min: sorted[0],
+          max: sorted[sorted.length - 1],
+          belowGic: belowGic,
+          belowStart: belowStart
+        };
+      }
+
+      window.Sim = { run: run, percentile: percentile };
+    })();
+  </script>
+  <script>
+    /*
+     * Canvas chart: simulation paths, GIC line, and dashed percentile lines that end in
+     * labelled markers on the right-hand (year 10) value axis.
+     */
+    (function () {
+      "use strict";
+
+      var FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+
+      var moneyFull = new Intl.NumberFormat("en-CA", {
+        style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0
+      });
+
+      function formatMoney(v) {
+        return moneyFull.format(v);
+      }
+
+      // Short form for tight spaces: $12.3k, $1.25M, $4.8B.
+      function formatMoneyCompact(v) {
+        var abs = Math.abs(v);
+        if (abs >= 1e12) return "$" + trimNum(v / 1e12, 2) + "T";
+        if (abs >= 1e9) return "$" + trimNum(v / 1e9, 2) + "B";
+        if (abs >= 1e6) return "$" + trimNum(v / 1e6, 2) + "M";
+        if (abs >= 1e4) return "$" + trimNum(v / 1e3, 1) + "k";
+        return formatMoney(v);
+      }
+
+      function trimNum(v, maxDigits) {
+        return v.toLocaleString("en-CA", { maximumFractionDigits: maxDigits });
+      }
+
+      // Theme colours come from CSS custom properties so light/dark mode live in one place.
+      function readTheme(el) {
+        var cs = getComputedStyle(el);
+        function v(name) { return cs.getPropertyValue(name).trim(); }
+        return {
+          surface: v("--surface"), ink: v("--ink"), ink2: v("--ink-2"), muted: v("--muted"),
+          grid: v("--grid"), axis: v("--axis"), path: v("--path"), extreme: v("--extreme"), bar: v("--bar"),
+          gic: v("--gic"), p95: v("--p95"), p50: v("--p50"), p5: v("--p5")
+        };
+      }
+
+      // 1-2-2.5-5 stepping for clean tick values.
+      function niceStep(raw) {
+        var pow = Math.pow(10, Math.floor(Math.log10(raw)));
+        var f = raw / pow;
+        var nice = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+        return nice * pow;
+      }
+
+      // Tick labels share one unit and just enough decimals to show the step exactly.
+      function tickFormatter(maxAbs, step) {
+        var unit = 1, suffix = "";
+        if (maxAbs >= 1e12) { unit = 1e12; suffix = "T"; }
+        else if (maxAbs >= 1e9) { unit = 1e9; suffix = "B"; }
+        else if (maxAbs >= 1e6) { unit = 1e6; suffix = "M"; }
+        else if (maxAbs >= 1e4) { unit = 1e3; suffix = "k"; }
+        var digits = 0;
+        while (digits < 3) {
+          var scaled = (step / unit) * Math.pow(10, digits);
+          if (Math.abs(scaled - Math.round(scaled)) < 1e-6) break;
+          digits++;
+        }
+        return function (v) {
+          if (v === 0) return "$0";
+          return "$" + (v / unit).toLocaleString("en-CA", {
+            minimumFractionDigits: digits, maximumFractionDigits: digits
+          }) + suffix;
+        };
+      }
+
+      // Sizes the canvas backing store for the screen's pixel density and clears it to the surface.
+      // Returns null when the canvas has no size (e.g. hidden).
+      function prepareCanvas(canvas) {
+        var w = canvas.clientWidth, h = canvas.clientHeight;
+        if (!w || !h) return null;
+        var dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        var ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var t = readTheme(canvas);
+        ctx.fillStyle = t.surface;
+        ctx.fillRect(0, 0, w, h);
+        return { ctx: ctx, w: w, h: h, t: t };
+      }
+
+      function draw(canvas, result) {
+        var c = prepareCanvas(canvas);
+        if (!c || !result) return;
+        var ctx = c.ctx, w = c.w, h = c.h, t = c.t;
+
+        var years = result.params.years;
+        var paths = result.paths;
+        var compact = w < 560;
+        var money = compact ? formatMoneyCompact : formatMoney;
+        var fontRegular = "12px " + FONT_FAMILY;
+        var fontBold = "600 12px " + FONT_FAMILY;
+
+        // ---- Y domain from every plotted value ----
+        var lo = Infinity, hi = -Infinity;
+        function take(v) { if (v < lo) lo = v; if (v > hi) hi = v; }
+        paths.forEach(function (p) { p.forEach(take); });
+        result.gic.forEach(take);
+        if (hi - lo < hi * 0.002) { // near-flat data: give it some room
+          var pad = Math.max(hi * 0.01, 1);
+          lo -= pad; hi += pad;
+        }
+        var step = niceStep((hi - lo) / 5);
+        var yMin = Math.max(0, Math.floor(lo / step) * step);
+        var yMax = Math.ceil(hi / step) * step;
+        var ticks = [];
+        for (var i = 0; yMin + i * step <= yMax + step * 1e-6; i++) ticks.push(yMin + i * step);
+        var fmtTick = tickFormatter(yMax, step);
+
+        // ---- Right-axis labels (measured first so the margin fits them) ----
+        var labels = [
+          { name: "Max", value: result.max, color: t.extreme },
+          { name: "95th", value: result.p95, color: t.p95 },
+          { name: "GIC", value: result.gicFinal, color: t.gic },
+          { name: "Median", value: result.p50, color: t.p50 },
+          { name: "5th", value: result.p5, color: t.p5 },
+          { name: "Min", value: result.min, color: t.extreme }
+        ];
+        var maxLabelW = 0;
+        labels.forEach(function (l) {
+          l.valueText = money(l.value);
+          ctx.font = fontBold;
+          l.nameW = ctx.measureText(l.name + " ").width;
+          ctx.font = fontRegular;
+          l.width = l.nameW + ctx.measureText(l.valueText).width;
+          if (l.width > maxLabelW) maxLabelW = l.width;
+        });
+
+        ctx.font = fontRegular;
+        var maxTickW = 0;
+        ticks.forEach(function (v) { maxTickW = Math.max(maxTickW, ctx.measureText(fmtTick(v)).width); });
+
+        var m = { top: 14, right: maxLabelW + 26, bottom: 44, left: maxTickW + 14 };
+        var plotL = m.left, plotR = w - m.right, plotT = m.top, plotB = h - m.bottom;
+        var plotW = plotR - plotL, plotH = plotB - plotT;
+        if (plotW < 40 || plotH < 40) return;
+
+        function xOf(year) { return plotL + (year / years) * plotW; }
+        function yOf(v) { return plotB - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+        // ---- Grid and y tick labels ----
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = t.grid;
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ticks.forEach(function (v) {
+          var y = Math.round(yOf(v)) + 0.5;
+          ctx.beginPath();
+          ctx.moveTo(plotL, y);
+          ctx.lineTo(plotR, y);
+          ctx.stroke();
+          ctx.fillText(fmtTick(v), plotL - 8, y);
+        });
+
+        // ---- X axis: baseline, year ticks, title ----
+        ctx.strokeStyle = t.axis;
+        ctx.beginPath();
+        ctx.moveTo(plotL, Math.round(plotB) + 0.5);
+        ctx.lineTo(plotR, Math.round(plotB) + 0.5);
+        ctx.moveTo(Math.round(plotR) + 0.5, plotT);
+        ctx.lineTo(Math.round(plotR) + 0.5, plotB);
+        ctx.stroke();
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        for (var yr = 0; yr <= years; yr++) {
+          ctx.fillText(String(yr), xOf(yr), plotB + 6);
+        }
+        ctx.fillText("Years", plotL + plotW / 2, plotB + 24);
+
+        // ---- Simulation paths: thin and translucent, so overlap reads as density ----
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(plotL, plotT - 2, plotW + 2, plotH + 4);
+        ctx.clip();
+        ctx.strokeStyle = t.path;
+        ctx.lineWidth = 0.75;
+        ctx.lineJoin = "round";
+        ctx.globalAlpha = Math.max(0.03, Math.min(0.9, 3.5 / Math.sqrt(paths.length)));
+        paths.forEach(function (p) {
+          ctx.beginPath();
+          for (var y = 0; y <= years; y++) {
+            if (y === 0) ctx.moveTo(xOf(y), yOf(p[y]));
+            else ctx.lineTo(xOf(y), yOf(p[y]));
+          }
+          ctx.stroke();
+        });
+        ctx.globalAlpha = 1;
+
+        // ---- Dashed lines across the chart: percentiles (long dashes), max/min (short dashes) ----
+        [
+          { v: result.max, c: t.extreme, dash: [3, 4], width: 1.5 },
+          { v: result.min, c: t.extreme, dash: [3, 4], width: 1.5 },
+          { v: result.p95, c: t.p95, dash: [7, 5], width: 2 },
+          { v: result.p50, c: t.p50, dash: [7, 5], width: 2 },
+          { v: result.p5, c: t.p5, dash: [7, 5], width: 2 }
+        ].forEach(function (d) {
+          ctx.strokeStyle = d.c;
+          ctx.lineWidth = d.width;
+          ctx.setLineDash(d.dash);
+          ctx.beginPath();
+          ctx.moveTo(plotL, yOf(d.v));
+          ctx.lineTo(plotR, yOf(d.v));
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+
+        // ---- GIC line on top, with a surface-coloured halo so it stays legible over a dense cloud ----
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        result.gic.forEach(function (v, y) {
+          if (y === 0) ctx.moveTo(xOf(y), yOf(v));
+          else ctx.lineTo(xOf(y), yOf(v));
+        });
+        ctx.strokeStyle = t.surface;
+        ctx.lineWidth = 6.5;
+        ctx.stroke();
+        ctx.strokeStyle = t.gic;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.restore();
+
+        // ---- Markers on the right axis, with labels spread apart when values are close ----
+        var lineH = 18;
+        labels.forEach(function (l) { l.y0 = yOf(l.value); });
+        labels.sort(function (a, b) { return a.y0 - b.y0; });
+        var topBound = lineH / 2 + 2, bottomBound = h - lineH / 2 - 2;
+        labels.forEach(function (l, idx) {
+          l.y = Math.max(l.y0, idx === 0 ? topBound : labels[idx - 1].y + lineH);
+        });
+        for (var k = labels.length - 1; k >= 0; k--) {
+          var limit = k === labels.length - 1 ? bottomBound : labels[k + 1].y - lineH;
+          labels[k].y = Math.min(labels[k].y, limit);
+        }
+
+        var labelX = plotR + 16;
+        labels.forEach(function (l) {
+          // Leader line from the axis marker to its label.
+          ctx.strokeStyle = l.color;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(plotR, l.y0);
+          ctx.lineTo(labelX - 4, l.y);
+          ctx.stroke();
+        });
+        labels.forEach(function (l) {
+          // Marker with a surface-coloured ring so it stays legible over lines.
+          ctx.fillStyle = t.surface;
+          ctx.beginPath();
+          ctx.arc(plotR, l.y0, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = l.color;
+          ctx.beginPath();
+          ctx.arc(plotR, l.y0, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.font = fontBold;
+          ctx.fillStyle = t.ink;
+          ctx.fillText(l.name, labelX, l.y);
+          ctx.font = fontRegular;
+          ctx.fillStyle = t.ink2;
+          ctx.fillText(l.valueText, labelX + l.nameW, l.y);
+        });
+      }
+
+      window.RiskChart = {
+        draw: draw,
+        formatMoney: formatMoney,
+        // Shared with the histogram.
+        util: {
+          FONT_FAMILY: FONT_FAMILY,
+          prepareCanvas: prepareCanvas,
+          niceStep: niceStep,
+          tickFormatter: tickFormatter
+        }
+      };
+    })();
+  </script>
+  <script>
+    /*
+     * Histogram of the year-10 values: about 30 bars of a round dollar width, with dashed markers
+     * for the 5th percentile, median and 95th percentile and a solid marker for the GIC.
+     */
+    (function () {
+      "use strict";
+
+      var TARGET_BARS = 30;
+      // Round multipliers for the bar width. Finer than 1-2-5 so the bar count stays close to 30.
+      var NICE = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+      function niceBinWidth(raw) {
+        var pow = Math.pow(10, Math.floor(Math.log10(raw)));
+        var best = pow, bestErr = Infinity;
+        NICE.forEach(function (m) {
+          var err = Math.abs(Math.log((m * pow) / raw));
+          if (err < bestErr) { bestErr = err; best = m * pow; }
+        });
+        return best;
+      }
+
+      // The bars span every simulated result plus the GIC, so the GIC marker is always on the axis.
+      function bins(result) {
+        var values = result.finals;
+        var lo = Math.min(values[0], result.gicFinal);
+        var hi = Math.max(values[values.length - 1], result.gicFinal);
+        if (hi - lo < 1e-9) { // every value identical: centre a small range on it
+          var pad = Math.max(Math.abs(lo) * 0.05, 1);
+          lo -= pad;
+          hi += pad;
+        }
+        var width = niceBinWidth((hi - lo) / TARGET_BARS);
+        var start = Math.floor(lo / width) * width;
+        var n = Math.floor((hi - start) / width) + 1;
+        var counts = [];
+        for (var i = 0; i < n; i++) counts.push(0);
+        values.forEach(function (v) {
+          var k = Math.floor((v - start) / width);
+          counts[Math.min(n - 1, Math.max(0, k))]++;
+        });
+        return { start: start, width: width, counts: counts, total: values.length };
+      }
+
+      // A bar with rounded top corners and a square base.
+      function barPath(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + h);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, r);
+        ctx.lineTo(x + w, y + h);
+        ctx.closePath();
+      }
+
+      function draw(canvas, result) {
+        var u = RiskChart.util;
+        var c = u.prepareCanvas(canvas);
+        if (!c || !result) return;
+        var ctx = c.ctx, w = c.w, h = c.h, t = c.t;
+
+        var b = bins(result);
+        var end = b.start + b.counts.length * b.width;
+        var compact = w < 560;
+        var fontRegular = "12px " + u.FONT_FAMILY;
+        var fontBold = "600 12px " + u.FONT_FAMILY;
+
+        // ---- Y scale: share of simulations in each bar ----
+        var maxShare = 0;
+        b.counts.forEach(function (k) { maxShare = Math.max(maxShare, (k / b.total) * 100); });
+        var yStep = u.niceStep(maxShare / 4);
+        var yMax = Math.max(yStep, Math.ceil(maxShare / yStep - 1e-9) * yStep);
+        var yTicks = [];
+        for (var i = 0; i * yStep <= yMax + yStep * 1e-6; i++) yTicks.push(i * yStep);
+        var yDigits = 0;
+        while (yDigits < 3 && Math.abs(yStep * Math.pow(10, yDigits) - Math.round(yStep * Math.pow(10, yDigits))) > 1e-6) yDigits++;
+        function fmtPct(v) {
+          return v.toLocaleString("en-CA", { minimumFractionDigits: yDigits, maximumFractionDigits: yDigits }) + "%";
+        }
+
+        // ---- X ticks: dollar values ----
+        var xStep = u.niceStep((end - b.start) / (compact ? 4 : 7));
+        var xTicks = [];
+        for (var x = Math.ceil(b.start / xStep) * xStep; x <= end + xStep * 1e-6; x += xStep) xTicks.push(x);
+        var fmtX = u.tickFormatter(Math.max(Math.abs(b.start), Math.abs(end)), xStep);
+
+        ctx.font = fontRegular;
+        var maxTickW = 0;
+        yTicks.forEach(function (v) { maxTickW = Math.max(maxTickW, ctx.measureText(fmtPct(v)).width); });
+
+        var m = { top: 30, right: 24, bottom: 44, left: maxTickW + 14 };
+        var plotL = m.left, plotR = w - m.right, plotT = m.top, plotB = h - m.bottom;
+        var plotW = plotR - plotL, plotH = plotB - plotT;
+        if (plotW < 40 || plotH < 30) return;
+
+        function xOf(v) { return plotL + ((v - b.start) / (end - b.start)) * plotW; }
+        function yOf(p) { return plotB - (p / yMax) * plotH; }
+
+        // ---- Grid, y labels, baseline ----
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = t.grid;
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        yTicks.forEach(function (v) {
+          var y = Math.round(yOf(v)) + 0.5;
+          ctx.beginPath();
+          ctx.moveTo(plotL, y);
+          ctx.lineTo(plotR, y);
+          ctx.stroke();
+          ctx.fillText(fmtPct(v), plotL - 8, y);
+        });
+        ctx.strokeStyle = t.axis;
+        ctx.beginPath();
+        ctx.moveTo(plotL, Math.round(plotB) + 0.5);
+        ctx.lineTo(plotR, Math.round(plotB) + 0.5);
+        ctx.stroke();
+
+        // ---- X labels and title ----
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        xTicks.forEach(function (v) { ctx.fillText(fmtX(v), xOf(v), plotB + 6); });
+        ctx.fillText("Value after 10 years", plotL + plotW / 2, plotB + 24);
+
+        // ---- Bars: 2px gap between neighbours; any non-empty bar is at least 1px tall ----
+        ctx.fillStyle = t.bar;
+        b.counts.forEach(function (k, idx) {
+          if (!k) return;
+          var x0 = xOf(b.start + idx * b.width), x1 = xOf(b.start + (idx + 1) * b.width);
+          var bw = Math.max(1, x1 - x0 - 2);
+          var top = Math.min(yOf((k / b.total) * 100), plotB - 1);
+          var bh = plotB - top;
+          barPath(ctx, x0 + 1, top, bw, bh, Math.min(3, bw / 2, bh));
+          ctx.fill();
+        });
+
+        // ---- Markers: dashed percentiles, solid GIC with a surface halo ----
+        var markers = [
+          { name: "5th", value: result.p5, color: t.p5, dash: [7, 5] },
+          { name: "Median", value: result.p50, color: t.p50, dash: [7, 5] },
+          { name: "95th", value: result.p95, color: t.p95, dash: [7, 5] },
+          { name: "GIC", value: result.gicFinal, color: t.gic, dash: [] }
+        ];
+        markers.forEach(function (mk) {
+          mk.x = Math.round(xOf(mk.value)) + 0.5;
+          if (!mk.dash.length) {
+            ctx.strokeStyle = t.surface;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(mk.x, plotT);
+            ctx.lineTo(mk.x, plotB);
+            ctx.stroke();
+          }
+          ctx.strokeStyle = mk.color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash(mk.dash);
+          ctx.beginPath();
+          ctx.moveTo(mk.x, plotT);
+          ctx.lineTo(mk.x, plotB);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+
+        // ---- Marker labels in a row above the plot, spread apart when markers are close ----
+        ctx.font = fontBold;
+        var gap = 8;
+        var sorted = markers.slice().sort(function (a, b2) { return a.x - b2.x; });
+        sorted.forEach(function (mk, idx) {
+          mk.w = ctx.measureText(mk.name).width;
+          var left = mk.x - mk.w / 2;
+          if (idx > 0) left = Math.max(left, sorted[idx - 1].left + sorted[idx - 1].w + gap);
+          mk.left = Math.max(2, left);
+        });
+        for (var k = sorted.length - 1; k >= 0; k--) {
+          var limit = k === sorted.length - 1 ? w - 2 : sorted[k + 1].left - gap;
+          sorted[k].left = Math.min(sorted[k].left, limit - sorted[k].w);
+        }
+        var labelY = 9;
+        sorted.forEach(function (mk) {
+          var cx = mk.left + mk.w / 2;
+          ctx.strokeStyle = mk.color;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(cx, labelY + 8);
+          ctx.lineTo(mk.x, plotT);
+          ctx.stroke();
+          ctx.fillStyle = t.ink;
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillText(mk.name, mk.left, labelY);
+        });
+      }
+
+      window.Histogram = { draw: draw, bins: bins };
+    })();
+  </script>
+  <script>
+    /*
+     * Wires the form, simulation, chart and results together.
+     */
+    (function () {
+      "use strict";
+
+      var YEARS = 10;
+      var START = 10000;
+
+      var FIELDS = [
+        { id: "gicRate", min: 0.01, max: 10, decimals: 2, range: "0.01% and 10.00%" },
+        { id: "mean", min: -150, max: 150, decimals: 2, range: "−150.00% and 150.00%" },
+        { id: "sd", min: 0, max: 150, decimals: 2, range: "0.00% and 150.00%" },
+        { id: "count", min: 1, max: 10000, decimals: 0, range: "1 and 10,000" }
+      ];
+
+      var form = document.getElementById("inputs");
+      var runButton = document.getElementById("run");
+      var staleNote = document.getElementById("stale");
+      var canvas = document.getElementById("chart");
+      var histCanvas = document.getElementById("hist");
+      var lastResult = null;
+
+      // ---------- Validation ----------
+
+      // Returns { value } when valid, or { error } with a message for the user.
+      function checkField(f) {
+        var input = document.getElementById(f.id);
+        var raw = input.value.trim();
+        if (input.validity.badInput) return { error: "Please enter a number." };
+        if (raw === "") return { error: "Please enter a value." };
+        var value = Number(raw);
+        if (!isFinite(value)) return { error: "Please enter a number." };
+        if (value < f.min || value > f.max) return { error: "Enter a value between " + f.range + "." };
+        var dot = raw.indexOf(".");
+        var places = dot === -1 ? 0 : raw.length - dot - 1;
+        if (places > f.decimals) {
+          return { error: f.decimals === 0 ? "Enter a whole number." : "Use at most " + f.decimals + " decimal places." };
+        }
+        return { value: value };
+      }
+
+      function showFieldState(f, check) {
+        var input = document.getElementById(f.id);
+        var error = document.getElementById(f.id + "-error");
+        error.textContent = check.error || "";
+        if (check.error) input.setAttribute("aria-invalid", "true");
+        else input.removeAttribute("aria-invalid");
+      }
+
+      // Validates every field; returns the values keyed by id, or null if any are invalid.
+      function readInputs(showErrors) {
+        var values = {};
+        var ok = true;
+        FIELDS.forEach(function (f) {
+          var check = checkField(f);
+          if (showErrors) showFieldState(f, check);
+          if (check.error) ok = false;
+          else values[f.id] = check.value;
+        });
+        return ok ? values : null;
+      }
+
+      // ---------- Formatting ----------
+
+      var money = RiskChart.formatMoney;
+
+      function signedPct(fraction) {
+        var pct = fraction * 100;
+        var sign = pct > 0.05 ? "+" : pct < -0.05 ? "−" : "";
+        return sign + Math.abs(pct).toLocaleString("en-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
+      }
+
+      // Histogram bars can be narrow (e.g. $0.80) when results barely differ; show cents only then.
+      function moneyFor(v, barWidth) {
+        if (barWidth >= 10) return money(v);
+        return "$" + v.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function count(x) {
+        return x.toLocaleString("en-CA");
+      }
+
+      // Never rounds a non-zero share to 0% or a partial share to 100%.
+      function pctOf(part, whole) {
+        var pct = Math.round((part / whole) * 100);
+        if (part > 0 && pct === 0) return "<1%";
+        if (part < whole && pct === 100) return ">99%";
+        return pct + "%";
+      }
+
+      // ---------- Rendering ----------
+
+      function setTile(key, value, start, suffix) {
+        document.getElementById("tile-" + key).textContent = money(value);
+        var delta = document.getElementById("tile-" + key + "-delta");
+        var change = value / start - 1;
+        delta.textContent = signedPct(change) + " total" + (suffix || "");
+        delta.className = "tile-delta " + (change > 0.0005 ? "up" : change < -0.0005 ? "down" : "");
+      }
+
+      function renderResults(r) {
+        var p = r.params;
+        var n = p.count;
+
+        document.getElementById("chart-start").textContent = money(p.start);
+
+        setTile("gic", r.gicFinal, p.start, ", guaranteed");
+        setTile("p5", r.p5, p.start);
+        setTile("p50", r.p50, p.start);
+        setTile("p95", r.p95, p.start);
+
+        var diff = r.p50 - r.gicFinal;
+        var facts = [
+          "<strong>" + count(r.belowGic) + " of " + count(n) + "</strong> simulations (" + pctOf(r.belowGic, n) +
+            ") ended below the GIC's guaranteed " + money(r.gicFinal) + ".",
+          "<strong>" + count(r.belowStart) + " of " + count(n) + "</strong> simulations (" + pctOf(r.belowStart, n) +
+            ") lost money, ending below the " + money(p.start) + " you started with.",
+          "The typical (median) outcome was <strong>" + money(r.p50) + "</strong>, which is " +
+            money(Math.abs(diff)) + (diff >= 0 ? " more" : " less") + " than the GIC. " +
+            (diff >= 0 ? "But" : "And") + " in the worst 5% of simulations, the investment ended at " +
+            money(r.p5) + " or less.",
+          "Across all simulations, results ranged from " + money(r.min) + " (lowest) to " +
+            money(r.max) + " (highest)."
+        ];
+        if (n < 20) {
+          facts.push("With only " + n + (n === 1 ? " simulation" : " simulations") +
+            ", the percentiles are rough estimates. Try 1,000 simulations for steadier results.");
+        }
+        // Only formatted numbers are inserted here, never raw user text.
+        document.getElementById("facts").innerHTML = facts.map(function (f) {
+          return "<li>" + f + "</li>";
+        }).join("");
+
+        canvas.setAttribute("aria-label",
+          count(n) + " simulated investment paths over " + p.years + " years starting at " + money(p.start) +
+          ". GIC ends at " + money(r.gicFinal) + ". 95th percentile " + money(r.p95) +
+          ", median " + money(r.p50) + ", 5th percentile " + money(r.p5) +
+          ". Highest " + money(r.max) + ", lowest " + money(r.min) + ".");
+
+        renderHistogramText(r);
+      }
+
+      function renderHistogramText(r) {
+        var b = Histogram.bins(r);
+        var top = 0;
+        b.counts.forEach(function (k, i) { if (k > b.counts[top]) top = i; });
+        var w = b.width;
+        var topLo = b.start + top * w;
+        var range = moneyFor(topLo, w) + " to " + moneyFor(topLo + w, w);
+        document.getElementById("hist-note").textContent =
+          "This shows where the grey lines above ended. Each bar covers a " + moneyFor(w, w) +
+          " range of results, and taller bars mean more simulations ended in that range. The most common range was " +
+          range + ".";
+        histCanvas.setAttribute("aria-label",
+          "Histogram of " + count(b.total) + " simulated results after 10 years, in " + b.counts.length +
+          " bars of " + moneyFor(w, w) + ". The most common range was " + range + ", with " +
+          pctOf(b.counts[top], b.total) + " of simulations.");
+      }
+
+      function drawChart() {
+        RiskChart.draw(canvas, lastResult);
+        Histogram.draw(histCanvas, lastResult);
+      }
+
+      function runSimulation() {
+        var v = readInputs(true);
+        if (!v) return;
+        lastResult = Sim.run({
+          start: START,
+          gicRate: v.gicRate / 100,
+          mean: v.mean / 100,
+          sd: v.sd / 100,
+          count: v.count,
+          years: YEARS
+        });
+        renderResults(lastResult);
+        drawChart();
+        staleNote.hidden = true;
+      }
+
+      // ---------- Events ----------
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        runSimulation();
+      });
+
+      FIELDS.forEach(function (f) {
+        document.getElementById(f.id).addEventListener("input", function () {
+          showFieldState(f, checkField(f));
+          runButton.disabled = readInputs(false) === null;
+          if (lastResult) staleNote.hidden = false;
+        });
+      });
+
+      // Redraw when the chart's box changes size or the colour scheme flips.
+      if (window.ResizeObserver) {
+        var observer = new ResizeObserver(drawChart);
+        observer.observe(document.getElementById("chart-wrap"));
+        observer.observe(document.getElementById("hist-wrap"));
+      } else {
+        window.addEventListener("resize", drawChart);
+      }
+      if (window.matchMedia) {
+        var scheme = window.matchMedia("(prefers-color-scheme: dark)");
+        if (scheme.addEventListener) scheme.addEventListener("change", drawChart);
+      }
+
+      runSimulation();
+    })();
+  </script>
+  <script>
+    /*
+     * "?" buttons next to the security's metrics open a message card explaining how to get a
+     * portfolio's average annual return and standard deviation from an AI assistant.
+     * Close with X, Escape, or a click outside the card. Nothing here changes the inputs.
+     */
+    (function () {
+      "use strict";
+
+      var dialog = document.getElementById("metricsDialog");
+      var closeBtn = document.getElementById("metricsClose");
+      var returnTo = null;
+
+      function open(btn) {
+        returnTo = btn;
+        dialog.showModal();
+        closeBtn.focus();
+      }
+
+      closeBtn.addEventListener("click", function () { dialog.close(); });
+
+      // Escape fires the dialog's native close; either way, focus goes back to the "?" that opened it.
+      dialog.addEventListener("close", function () {
+        if (returnTo) returnTo.focus();
+        returnTo = null;
+      });
+
+      // A press on the backdrop targets the <dialog> itself but lands outside its box.
+      dialog.addEventListener("pointerdown", function (e) {
+        if (e.target !== dialog) return;
+        var r = dialog.getBoundingClientRect();
+        var inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (!inside) dialog.close();
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll(".help-btn"), function (btn) {
+        btn.addEventListener("click", function () { open(btn); });
+      });
+
+      // Copy a quote without its curly quotation marks, ready to paste.
+      function copyText(text, btn) {
+        function done(ok) {
+          btn.textContent = ok ? "Copied" : "Select and copy";
+          setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+        }
+        function fallback() {
+          var ta = document.createElement("textarea");
+          ta.value = text;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          dialog.appendChild(ta); // inside the modal dialog so it can take focus
+          ta.select();
+          var ok = false;
+          try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+          dialog.removeChild(ta);
+          return ok;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
+        } else {
+          done(fallback());
+        }
+      }
+
+      Array.prototype.forEach.call(dialog.querySelectorAll(".md-copy"), function (btn) {
+        btn.addEventListener("click", function () {
+          var text = document.getElementById(btn.getAttribute("data-copy")).textContent.replace(/^“|”$/g, "");
+          copyText(text, btn);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
