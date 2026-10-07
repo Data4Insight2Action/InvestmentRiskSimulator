@@ -194,18 +194,25 @@
     .help-btn::before {
       content: "";
       position: absolute;
-      inset: -5px;
+      top: -5px;
+      right: -5px;
+      bottom: -5px;
+      left: -5px;
     }
 
-    .help-btn:hover {
-      background: var(--button);
-      border-color: var(--button);
-      color: var(--button-text);
+    /* Hover colours only where a real hover exists, so they don't stick after a tap on phones. */
+    @media (hover: hover) {
+      .help-btn:hover {
+        background: var(--button);
+        border-color: var(--button);
+        color: var(--button-text);
+      }
     }
 
     .field input {
       width: 100%;
       font: inherit;
+      font-size: 16px; /* 16px or more stops iPhone Safari zooming in when a box is tapped */
       font-variant-numeric: tabular-nums;
       color: var(--ink);
       background: var(--page);
@@ -283,8 +290,10 @@
       cursor: pointer;
     }
 
-    .run-button:hover:not(:disabled) {
-      background: var(--button-hover);
+    @media (hover: hover) {
+      .run-button:hover:not(:disabled) {
+        background: var(--button-hover);
+      }
     }
 
     .run-button:disabled {
@@ -339,7 +348,8 @@
     .chart-wrap canvas,
     .hist-wrap canvas {
       position: absolute;
-      inset: 0;
+      top: 0;
+      left: 0;
       display: block;
       width: 100%;
       height: 100%;
@@ -383,6 +393,12 @@
       font-weight: 600;
       line-height: 1.25;
       margin-top: 4px;
+      word-break: break-word; /* last resort for huge numbers on narrow phones */
+      overflow-wrap: anywhere;
+    }
+
+    .tile-value.tile-value-long {
+      font-size: 19px;
     }
 
     .tile-delta {
@@ -427,6 +443,7 @@
       width: min(520px, calc(100% - 32px));
       max-width: none;
       max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px); /* excludes the phone browser's toolbars where supported */
       padding: 0;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -436,6 +453,35 @@
     }
 
     .metrics-dialog::backdrop {
+      background: rgba(10, 16, 20, 0.45);
+    }
+
+    /* Browsers without <dialog> support (Safari before 15.4) would otherwise show the card
+       permanently at the bottom of the page. */
+    dialog:not([open]) {
+      display: none;
+    }
+
+    /* The card when opened without native <dialog> support. */
+    .metrics-dialog.md-fallback {
+      display: block;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      z-index: 1001;
+      margin: 0;
+      overflow: auto;
+      -webkit-transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%);
+    }
+
+    .md-overlay {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 1000;
       background: rgba(10, 16, 20, 0.45);
     }
 
@@ -468,9 +514,11 @@
       cursor: pointer;
     }
 
-    .md-close:hover {
-      color: var(--ink);
-      background: var(--page);
+    @media (hover: hover) {
+      .md-close:hover {
+        color: var(--ink);
+        background: var(--page);
+      }
     }
 
     .md-text {
@@ -516,9 +564,34 @@
       cursor: pointer;
     }
 
-    .md-copy:hover {
-      background: var(--button);
-      color: var(--button-text);
+    @media (hover: hover) {
+      .md-copy:hover {
+        background: var(--button);
+        color: var(--button-text);
+      }
+    }
+
+    /* Touch screens: bigger tap targets for the small buttons (about 44px, Apple's guideline). */
+    @media (pointer: coarse) {
+      .help-btn::before {
+        top: -12px;
+        right: -12px;
+        bottom: -12px;
+        left: -12px;
+      }
+
+      .md-close {
+        padding: 10px 14px;
+      }
+
+      .md-quote {
+        padding-right: 96px;
+      }
+
+      .md-copy {
+        padding: 9px 16px;
+        border-radius: 18px;
+      }
     }
 
     /* ---------- Narrow screens ---------- */
@@ -838,9 +911,18 @@
 
       var FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
-      var moneyFull = new Intl.NumberFormat("en-CA", {
-        style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0
-      });
+      // "narrowSymbol" guarantees a plain "$", but Safari before 14.1 (iOS 14.4 and older) throws
+      // on it, which would stop the whole app. Fall back to the default symbol ("$" for en-CA).
+      var moneyFull;
+      try {
+        moneyFull = new Intl.NumberFormat("en-CA", {
+          style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", maximumFractionDigits: 0
+        });
+      } catch (err) {
+        moneyFull = new Intl.NumberFormat("en-CA", {
+          style: "currency", currency: "CAD", minimumFractionDigits: 0, maximumFractionDigits: 0
+        });
+      }
 
       function formatMoney(v) {
         return moneyFull.format(v);
@@ -1343,7 +1425,8 @@
       function checkField(f) {
         var input = document.getElementById(f.id);
         var raw = input.value.trim();
-        if (input.validity.badInput) return { error: "Please enter a number." };
+        // Some phones in comma-decimal languages reject "8,5" in number boxes; say how to fix it.
+        if (input.validity.badInput) return { error: "Please enter a number, using a dot for decimals (e.g. 8.5)." };
         if (raw === "") return { error: "Please enter a value." };
         var value = Number(raw);
         if (!isFinite(value)) return { error: "Please enter a number." };
@@ -1408,7 +1491,10 @@
       // ---------- Rendering ----------
 
       function setTile(key, value, start, suffix) {
-        document.getElementById("tile-" + key).textContent = money(value);
+        var el = document.getElementById("tile-" + key);
+        el.textContent = money(value);
+        // Very large results (e.g. $11,010,513,814) get a smaller font so they fit on phones.
+        el.className = "tile-value" + (el.textContent.length > 11 ? " tile-value-long" : "");
         var delta = document.getElementById("tile-" + key + "-delta");
         var change = value / start - 1;
         delta.textContent = signedPct(change) + " total" + (suffix || "");
@@ -1521,6 +1607,7 @@
       if (window.matchMedia) {
         var scheme = window.matchMedia("(prefers-color-scheme: dark)");
         if (scheme.addEventListener) scheme.addEventListener("change", drawChart);
+        else if (scheme.addListener) scheme.addListener(drawChart); // Safari before 14
       }
 
       runSimulation();
@@ -1538,27 +1625,59 @@
       var dialog = document.getElementById("metricsDialog");
       var closeBtn = document.getElementById("metricsClose");
       var returnTo = null;
+      // Safari before 15.4 has no <dialog> support; there the card is shown as a fixed panel
+      // over a dimmed overlay instead.
+      var nativeDialog = typeof dialog.showModal === "function";
+      var overlay = null;
 
       function open(btn) {
         returnTo = btn;
-        dialog.showModal();
+        if (nativeDialog) {
+          dialog.showModal();
+        } else {
+          overlay = document.createElement("div");
+          overlay.className = "md-overlay";
+          overlay.addEventListener("click", closeCard);
+          document.body.appendChild(overlay);
+          dialog.setAttribute("open", "");
+          dialog.className += " md-fallback";
+          document.addEventListener("keydown", onFallbackKey);
+        }
         closeBtn.focus();
       }
 
-      closeBtn.addEventListener("click", function () { dialog.close(); });
+      function closeCard() {
+        if (nativeDialog) {
+          dialog.close(); // fires "close", which runs afterClose
+          return;
+        }
+        dialog.removeAttribute("open");
+        dialog.className = dialog.className.replace(" md-fallback", "");
+        if (overlay) overlay.parentNode.removeChild(overlay);
+        overlay = null;
+        document.removeEventListener("keydown", onFallbackKey);
+        afterClose();
+      }
 
-      // Escape fires the dialog's native close; either way, focus goes back to the "?" that opened it.
-      dialog.addEventListener("close", function () {
+      function onFallbackKey(e) {
+        if (e.key === "Escape" || e.key === "Esc") closeCard();
+      }
+
+      // Focus goes back to the "?" that opened the card.
+      function afterClose() {
         if (returnTo) returnTo.focus();
         returnTo = null;
-      });
+      }
+
+      closeBtn.addEventListener("click", closeCard);
+      if (nativeDialog) dialog.addEventListener("close", afterClose); // also covers Escape
 
       // A press on the backdrop targets the <dialog> itself but lands outside its box.
       dialog.addEventListener("pointerdown", function (e) {
-        if (e.target !== dialog) return;
+        if (!nativeDialog || e.target !== dialog) return;
         var r = dialog.getBoundingClientRect();
         var inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-        if (!inside) dialog.close();
+        if (!inside) closeCard();
       });
 
       Array.prototype.forEach.call(document.querySelectorAll(".help-btn"), function (btn) {
@@ -1579,6 +1698,7 @@
           ta.style.opacity = "0";
           dialog.appendChild(ta); // inside the modal dialog so it can take focus
           ta.select();
+          ta.setSelectionRange(0, text.length); // iOS ignores select() on its own
           var ok = false;
           try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
           dialog.removeChild(ta);
@@ -1593,7 +1713,7 @@
 
       Array.prototype.forEach.call(dialog.querySelectorAll(".md-copy"), function (btn) {
         btn.addEventListener("click", function () {
-          var text = document.getElementById(btn.getAttribute("data-copy")).textContent.replace(/^“|”$/g, "");
+          var text = document.getElementById(btn.getAttribute("data-copy")).textContent.replace(/^\u201c|\u201d$/g, "");
           copyText(text, btn);
         });
       });
