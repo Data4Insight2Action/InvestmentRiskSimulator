@@ -108,6 +108,10 @@
       color: var(--ink-2);
     }
 
+    .lede p + p {
+      margin-top: 8px;
+    }
+
     /* ---------- Layout ---------- */
 
     .layout {
@@ -651,12 +655,25 @@
   <main class="app">
     <header class="app-header">
       <h1>Investment Risk Simulator</h1>
-      <p class="lede">
-        A GIC or savings account grows along a steady, predictable line. An investment in a security
-        usually grows more over time, but it gets there with ups and downs, and nobody knows in
-        advance where it will end up. This simulator plays out many possible futures so you can see
-        the range of outcomes over 10 years.
-      </p>
+      <div class="lede">
+        <p>
+          A GIC or savings account grows along a steady, predictable path. An investment in a security
+          usually grows more over time, but it experiences ups and downs along the way, and no one knows
+          in advance how bumpy the road will be or where it will end up.
+        </p>
+        <p>
+          A security’s average annual return is like a GIC’s interest rate—similar to the slope of an
+          uphill path. The term “standard deviation” sounds technical, but it simply describes how bumpy
+          the road is, like having speed bumps and cracks in the pavement. A GIC’s standard deviation is 0
+          because the path is completely flat. In fact, when a security’s standard deviation is 0, it is
+          technically a GIC.
+        </p>
+        <p>
+          This simulator can run thousands of simulations to show you thousands of possible future paths
+          for the security’s price over the next 10 years. However, if you set the number of simulations
+          to 1, you can see a single price path that reflects how movement looks in the real world.
+        </p>
+      </div>
     </header>
 
     <div class="layout">
