@@ -321,6 +321,32 @@
       flex-direction: column;
     }
 
+    .chart-head-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      column-gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .chart-head-row h2 {
+      margin-bottom: 0;
+    }
+
+    /* Always holds text ("5,000 simulations" or the running count), so the row never changes height. */
+    .progress {
+      font-size: 13px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* While a run plays out, text that still describes the previous run is dimmed, not removed. */
+    .is-running #hist-note,
+    .is-running .facts {
+      opacity: 0.4;
+    }
+
     .chart-wrap {
       position: relative;
       flex: 3 1 0;
@@ -727,7 +753,7 @@
           <legend>Simulation</legend>
           <div class="field">
             <label for="count">Number of simulations</label>
-            <input id="count" type="number" inputmode="numeric" min="1" max="10000" step="1" value="5000"
+            <input id="count" type="number" inputmode="numeric" min="1" max="10000" step="1" value="300"
                    aria-describedby="count-hint count-error">
             <p class="hint" id="count-hint">1 – 10,000 possible futures</p>
             <p class="error" id="count-error" aria-live="polite"></p>
@@ -753,7 +779,10 @@
       </form>
 
       <section class="panel chart-panel" aria-labelledby="chart-title">
-        <h2 id="chart-title">Growth of <span id="chart-start">$10,000</span> over 10 years</h2>
+        <div class="chart-head-row">
+          <h2 id="chart-title">Growth of <span id="chart-start">$10,000</span> over 10 years</h2>
+          <span class="progress" id="progress">Simulating…</span>
+        </div>
         <div class="chart-wrap" id="chart-wrap">
           <canvas id="chart" role="img" aria-label="Simulation chart"></canvas>
         </div>
@@ -885,37 +914,52 @@
         return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
       }
 
-      function run(params) {
-        var gic = gicPath(params.start, params.gicRate, params.years);
-        var paths = simulatePaths(params.start, params.mean, params.sd, params.years, params.count);
-
-        var finals = paths.map(function (p) { return p[params.years]; });
-        var sorted = finals.slice().sort(function (a, b) { return a - b; });
-        var gicFinal = gic[params.years];
-
+      // Statistics of the final values over the first k paths (all of them when k is omitted).
+      // Used for the finished result and for each step of the progress animation.
+      function summarize(result, k) {
+        var years = result.params.years;
+        var n = k === undefined ? result.paths.length : k;
+        var finals = new Array(n);
+        for (var i = 0; i < n; i++) finals[i] = result.paths[i][years];
+        finals.sort(function (a, b) { return a - b; });
         var belowGic = 0, belowStart = 0;
-        for (var i = 0; i < finals.length; i++) {
-          if (finals[i] < gicFinal) belowGic++;
-          if (finals[i] < params.start) belowStart++;
+        for (i = 0; i < n; i++) {
+          if (finals[i] < result.gicFinal) belowGic++;
+          if (finals[i] < result.params.start) belowStart++;
         }
-
-        return {
-          params: params,
-          gic: gic,
-          paths: paths,
-          gicFinal: gicFinal,
-          finals: sorted, // year-10 values, ascending
-          p5: percentile(sorted, 0.05),
-          p50: percentile(sorted, 0.5),
-          p95: percentile(sorted, 0.95),
-          min: sorted[0],
-          max: sorted[sorted.length - 1],
-          belowGic: belowGic,
-          belowStart: belowStart
-        };
+        var s = { n: n, finals: finals, belowGic: belowGic, belowStart: belowStart };
+        if (n > 0) {
+          s.p5 = percentile(finals, 0.05);
+          s.p50 = percentile(finals, 0.5);
+          s.p95 = percentile(finals, 0.95);
+          s.min = finals[0];
+          s.max = finals[n - 1];
+        }
+        return s;
       }
 
-      window.Sim = { run: run, percentile: percentile };
+      function run(params) {
+        var gic = gicPath(params.start, params.gicRate, params.years);
+        var result = {
+          params: params,
+          gic: gic,
+          paths: simulatePaths(params.start, params.mean, params.sd, params.years, params.count),
+          gicFinal: gic[params.years]
+        };
+        var s = summarize(result);
+        result.finals = s.finals; // year-10 values, ascending
+        result.p5 = s.p5;
+        result.p50 = s.p50;
+        result.p95 = s.p95;
+        result.min = s.min;
+        result.max = s.max;
+        result.belowGic = s.belowGic;
+        result.belowStart = s.belowStart;
+        result.n = s.n;
+        return result;
+      }
+
+      window.Sim = { run: run, summarize: summarize, percentile: percentile };
     })();
   </script>
   <script>
@@ -1001,27 +1045,59 @@
 
       // Sizes the canvas backing store for the screen's pixel density and clears it to the surface.
       // Returns null when the canvas has no size (e.g. hidden).
+      // The backing store is only reallocated when the size changes, since the progress animation
+      // redraws every frame; otherwise the drawing state is reset by hand.
       function prepareCanvas(canvas) {
         var w = canvas.clientWidth, h = canvas.clientHeight;
         if (!w || !h) return null;
         var dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
+        var pw = Math.round(w * dpr), ph = Math.round(h * dpr);
         var ctx = canvas.getContext("2d");
+        if (canvas.width !== pw || canvas.height !== ph) {
+          canvas.width = pw;
+          canvas.height = ph;
+        } else {
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([]);
+          ctx.lineCap = "butt";
+          ctx.lineJoin = "miter";
+        }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         var t = readTheme(canvas);
         ctx.fillStyle = t.surface;
         ctx.fillRect(0, 0, w, h);
-        return { ctx: ctx, w: w, h: h, t: t };
+        return { ctx: ctx, w: w, h: h, t: t, dpr: dpr };
       }
 
-      function draw(canvas, result) {
+      // Off-screen layer holding the paths drawn so far, so each animation frame only adds the
+      // new ones instead of redrawing up to 10,000 lines.
+      var layer = null; // { canvas, result, key, drawn }
+
+      function strokePath(ctx, p, upTo, xOf, yOf) {
+        ctx.beginPath();
+        ctx.moveTo(xOf(0), yOf(p[0]));
+        var whole = Math.floor(upTo);
+        for (var y = 1; y <= whole; y++) ctx.lineTo(xOf(y), yOf(p[y]));
+        var f = upTo - whole; // part of the next year's segment, for a path still being drawn
+        if (f > 0 && whole + 1 < p.length) {
+          ctx.lineTo(xOf(whole + f), yOf(p[whole] + (p[whole + 1] - p[whole]) * f));
+        }
+        ctx.stroke();
+      }
+
+      // view (optional, during the progress animation): { shown, stats }, where shown is how many
+      // paths are visible (the fractional part is a path still being drawn) and stats summarizes the
+      // finished ones. Axes and margins always come from the full result, so nothing jumps.
+      function draw(canvas, result, view) {
         var c = prepareCanvas(canvas);
         if (!c || !result) return;
         var ctx = c.ctx, w = c.w, h = c.h, t = c.t;
 
         var years = result.params.years;
         var paths = result.paths;
+        var shown = view ? Math.min(view.shown, paths.length) : paths.length;
+        var k = Math.floor(shown);
+        var stats = view ? view.stats : result;
         var compact = w < 560;
         var money = compact ? formatMoneyCompact : formatMoney;
         var fontRegular = "12px " + FONT_FAMILY;
@@ -1043,23 +1119,30 @@
         for (var i = 0; yMin + i * step <= yMax + step * 1e-6; i++) ticks.push(yMin + i * step);
         var fmtTick = tickFormatter(yMax, step);
 
-        // ---- Right-axis labels (measured first so the margin fits them) ----
-        var labels = [
-          { name: "Max", value: result.max, color: t.extreme },
-          { name: "95th", value: result.p95, color: t.p95 },
-          { name: "GIC", value: result.gicFinal, color: t.gic },
-          { name: "Median", value: result.p50, color: t.p50 },
-          { name: "5th", value: result.p5, color: t.p5 },
-          { name: "Min", value: result.min, color: t.extreme }
-        ];
-        var maxLabelW = 0;
+        // ---- Right-axis labels. The margin is sized for the full result's values, which bound every
+        // in-progress value, plus a little slack, so the plot doesn't shift during the animation. ----
+        var labels = [{ name: "GIC", value: result.gicFinal, color: t.gic }];
+        if (stats.n > 0) {
+          labels.push(
+            { name: "Max", value: stats.max, color: t.extreme },
+            { name: "95th", value: stats.p95, color: t.p95 },
+            { name: "Median", value: stats.p50, color: t.p50 },
+            { name: "5th", value: stats.p5, color: t.p5 },
+            { name: "Min", value: stats.min, color: t.extreme }
+          );
+        }
+        ctx.font = fontBold;
+        var maxNameW = ctx.measureText("Median ").width;
+        ctx.font = fontRegular;
+        var maxValueW = 0;
+        [result.max, result.min, result.p95, result.p50, result.p5, result.gicFinal].forEach(function (v) {
+          maxValueW = Math.max(maxValueW, ctx.measureText(money(v)).width);
+        });
+        var maxLabelW = maxNameW + maxValueW + 6;
         labels.forEach(function (l) {
           l.valueText = money(l.value);
           ctx.font = fontBold;
           l.nameW = ctx.measureText(l.name + " ").width;
-          ctx.font = fontRegular;
-          l.width = l.nameW + ctx.measureText(l.valueText).width;
-          if (l.width > maxLabelW) maxLabelW = l.width;
         });
 
         ctx.font = fontRegular;
@@ -1105,33 +1188,49 @@
         }
         ctx.fillText("Years", plotL + plotW / 2, plotB + 24);
 
-        // ---- Simulation paths: thin and translucent, so overlap reads as density ----
+        // ---- Simulation paths: thin and translucent, so overlap reads as density. Finished paths
+        // live on the off-screen layer; only paths not yet on it are added. ----
+        var alpha = Math.max(0.03, Math.min(0.9, 3.5 / Math.sqrt(paths.length)));
+        function stylePaths(g) {
+          g.beginPath();
+          g.rect(plotL, plotT - 2, plotW + 2, plotH + 4);
+          g.clip();
+          g.strokeStyle = t.path;
+          g.lineWidth = 0.75;
+          g.lineJoin = "round";
+          g.globalAlpha = alpha;
+        }
+        var key = [canvas.width, canvas.height, t.path, plotL, plotR, plotT, plotB, yMin, yMax].join("|");
+        if (!layer || layer.result !== result || layer.key !== key || k < layer.drawn) {
+          var lc = layer ? layer.canvas : document.createElement("canvas");
+          lc.width = canvas.width; // also clears it
+          lc.height = canvas.height;
+          layer = { canvas: lc, result: result, key: key, drawn: 0 };
+        }
+        if (k > layer.drawn) {
+          var lctx = layer.canvas.getContext("2d");
+          lctx.save();
+          lctx.setTransform(c.dpr, 0, 0, c.dpr, 0, 0);
+          stylePaths(lctx);
+          for (var pi = layer.drawn; pi < k; pi++) strokePath(lctx, paths[pi], years, xOf, yOf);
+          lctx.restore();
+          layer.drawn = k;
+        }
+        ctx.drawImage(layer.canvas, 0, 0, w, h);
+
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(plotL, plotT - 2, plotW + 2, plotH + 4);
-        ctx.clip();
-        ctx.strokeStyle = t.path;
-        ctx.lineWidth = 0.75;
-        ctx.lineJoin = "round";
-        ctx.globalAlpha = Math.max(0.03, Math.min(0.9, 3.5 / Math.sqrt(paths.length)));
-        paths.forEach(function (p) {
-          ctx.beginPath();
-          for (var y = 0; y <= years; y++) {
-            if (y === 0) ctx.moveTo(xOf(y), yOf(p[y]));
-            else ctx.lineTo(xOf(y), yOf(p[y]));
-          }
-          ctx.stroke();
-        });
+        stylePaths(ctx);
+        if (k < paths.length && shown > k) strokePath(ctx, paths[k], (shown - k) * years, xOf, yOf);
         ctx.globalAlpha = 1;
 
         // ---- Dashed lines across the chart: percentiles (long dashes), max/min (short dashes) ----
-        [
-          { v: result.max, c: t.extreme, dash: [3, 4], width: 1.5 },
-          { v: result.min, c: t.extreme, dash: [3, 4], width: 1.5 },
-          { v: result.p95, c: t.p95, dash: [7, 5], width: 2 },
-          { v: result.p50, c: t.p50, dash: [7, 5], width: 2 },
-          { v: result.p5, c: t.p5, dash: [7, 5], width: 2 }
-        ].forEach(function (d) {
+        (stats.n > 0 ? [
+          { v: stats.max, c: t.extreme, dash: [3, 4], width: 1.5 },
+          { v: stats.min, c: t.extreme, dash: [3, 4], width: 1.5 },
+          { v: stats.p95, c: t.p95, dash: [7, 5], width: 2 },
+          { v: stats.p50, c: t.p50, dash: [7, 5], width: 2 },
+          { v: stats.p5, c: t.p5, dash: [7, 5], width: 2 }
+        ] : []).forEach(function (d) {
           ctx.strokeStyle = d.c;
           ctx.lineWidth = d.width;
           ctx.setLineDash(d.dash);
@@ -1259,6 +1358,17 @@
         return { start: start, width: width, counts: counts, total: values.length };
       }
 
+      // Bar counts for only the first k paths, using the full result's bars.
+      function countsFor(result, b, k) {
+        var years = result.params.years, n = b.counts.length, counts = [];
+        for (var i = 0; i < n; i++) counts.push(0);
+        for (i = 0; i < k; i++) {
+          var j = Math.floor((result.paths[i][years] - b.start) / b.width);
+          counts[Math.min(n - 1, Math.max(0, j))]++;
+        }
+        return counts;
+      }
+
       // A bar with rounded top corners and a square base.
       function barPath(ctx, x, y, w, h, r) {
         ctx.beginPath();
@@ -1271,13 +1381,17 @@
         ctx.closePath();
       }
 
-      function draw(canvas, result) {
+      // view (optional, during the progress animation): { shown, stats }. The bars, axes and scale
+      // come from the full result, so the bars grow towards their final heights as results land.
+      function draw(canvas, result, view) {
         var u = RiskChart.util;
         var c = u.prepareCanvas(canvas);
         if (!c || !result) return;
         var ctx = c.ctx, w = c.w, h = c.h, t = c.t;
 
         var b = bins(result);
+        var stats = view ? view.stats : result;
+        var counts = view ? countsFor(result, b, stats.n) : b.counts;
         var end = b.start + b.counts.length * b.width;
         var compact = w < 560;
         var fontRegular = "12px " + u.FONT_FAMILY;
@@ -1342,7 +1456,7 @@
 
         // ---- Bars: 2px gap between neighbours; any non-empty bar is at least 1px tall ----
         ctx.fillStyle = t.bar;
-        b.counts.forEach(function (k, idx) {
+        counts.forEach(function (k, idx) {
           if (!k) return;
           var x0 = xOf(b.start + idx * b.width), x1 = xOf(b.start + (idx + 1) * b.width);
           var bw = Math.max(1, x1 - x0 - 2);
@@ -1353,12 +1467,12 @@
         });
 
         // ---- Markers: dashed percentiles, solid GIC with a surface halo ----
-        var markers = [
-          { name: "5th", value: result.p5, color: t.p5, dash: [7, 5] },
-          { name: "Median", value: result.p50, color: t.p50, dash: [7, 5] },
-          { name: "95th", value: result.p95, color: t.p95, dash: [7, 5] },
-          { name: "GIC", value: result.gicFinal, color: t.gic, dash: [] }
-        ];
+        var markers = stats.n > 0 ? [
+          { name: "5th", value: stats.p5, color: t.p5, dash: [7, 5] },
+          { name: "Median", value: stats.p50, color: t.p50, dash: [7, 5] },
+          { name: "95th", value: stats.p95, color: t.p95, dash: [7, 5] }
+        ] : [];
+        markers.push({ name: "GIC", value: result.gicFinal, color: t.gic, dash: [] });
         markers.forEach(function (mk) {
           mk.x = Math.round(xOf(mk.value)) + 0.5;
           if (!mk.dash.length) {
@@ -1434,7 +1548,17 @@
       var staleNote = document.getElementById("stale");
       var canvas = document.getElementById("chart");
       var histCanvas = document.getElementById("hist");
+      var progressEl = document.getElementById("progress");
+      var appEl = document.querySelector(".app");
       var lastResult = null;
+
+      // Each run plays out over about a second: simulations appear a few at a time and the
+      // percentiles settle as the count grows. Skipped for people who ask for reduced motion.
+      var DURATION = 1000;
+      var reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      var view = null;        // { shown, stats } while a run is playing; null once it's finished
+      var frameId = null;
+      var changedDuringRun = false;
 
       // ---------- Validation ----------
 
@@ -1560,31 +1684,88 @@
         renderHistogramText(r);
       }
 
+      // "about 6%", or "less than 1%" / "more than 99%" at the extremes.
+      function aboutPct(part, whole) {
+        var pct = Math.round((part / whole) * 100);
+        if (part > 0 && pct === 0) return "less than 1%";
+        if (part < whole && pct === 100) return "more than 99%";
+        return "about " + pct + "%";
+      }
+
+      // Plain-language note: what a bar means, explained through the bar the GIC line sits on.
       function renderHistogramText(r) {
         var b = Histogram.bins(r);
-        var top = 0;
-        b.counts.forEach(function (k, i) { if (k > b.counts[top]) top = i; });
         var w = b.width;
-        var topLo = b.start + top * w;
-        var range = moneyFor(topLo, w) + " to " + moneyFor(topLo + w, w);
-        document.getElementById("hist-note").textContent =
-          "This shows where the grey lines above ended. Each bar covers a " + moneyFor(w, w) +
-          " range of results, and taller bars mean more simulations ended in that range. The most common range was " +
-          range + ".";
+        var gi = Math.min(b.counts.length - 1, Math.max(0, Math.floor((r.gicFinal - b.start) / w)));
+        var k = b.counts[gi];
+        var range = moneyFor(b.start + gi * w, w) + " to " + moneyFor(b.start + (gi + 1) * w, w);
+        var per100 = Math.round((k / b.total) * 100);
+
+        var text = "This chart shows where the grey lines above ended after 10 years. Each bar is a range of " +
+          "dollar results, and its height (left side) is the chance of ending up in that range. " +
+          "For example, the GIC line sits on the " + range + " bar, ";
+        if (k === 0) {
+          text += "which is empty: none of the possible futures ended up close to what the GIC pays.";
+        } else if (k === b.total) {
+          text += "which holds every simulation: all of the possible futures ended up close to what the GIC pays.";
+        } else {
+          text += "which is " + aboutPct(k, b.total) + " tall. That means in " +
+            (per100 === 0 ? "fewer than 1" : "about " + per100) +
+            " out of every 100 possible futures, the investment ended up close to what the GIC pays.";
+        }
+        if (r.belowGic === 0) text += " None of the possible futures did worse than the GIC.";
+        else if (r.belowGic === r.n) text += " Every possible future did worse than the GIC.";
+        else text += " Everything to the left of the GIC line (" + aboutPct(r.belowGic, r.n) +
+          " of futures) did worse than the GIC.";
+        document.getElementById("hist-note").textContent = text;
+
         histCanvas.setAttribute("aria-label",
           "Histogram of " + count(b.total) + " simulated results after 10 years, in " + b.counts.length +
-          " bars of " + moneyFor(w, w) + ". The most common range was " + range + ", with " +
-          pctOf(b.counts[top], b.total) + " of simulations.");
+          " bars of " + moneyFor(w, w) + ". The bar the GIC falls in, " + range + ", holds " +
+          pctOf(k, b.total) + " of simulations, and " + pctOf(r.belowGic, r.n) + " ended below the GIC.");
       }
 
       function drawChart() {
-        RiskChart.draw(canvas, lastResult);
-        Histogram.draw(histCanvas, lastResult);
+        RiskChart.draw(canvas, lastResult, view);
+        Histogram.draw(histCanvas, lastResult, view);
+      }
+
+      function clearTiles() {
+        ["gic", "p5", "p50", "p95"].forEach(function (key) {
+          var el = document.getElementById("tile-" + key);
+          el.textContent = "–";
+          el.className = "tile-value";
+          document.getElementById("tile-" + key + "-delta").textContent = "";
+        });
+      }
+
+      // One animation step: the count shown, and the tiles for the simulations finished so far.
+      function showProgress(stats, total) {
+        progressEl.textContent = "Simulating… " + count(stats.n) + " of " + count(total);
+        if (stats.n === 0) return;
+        var start = lastResult.params.start;
+        setTile("gic", lastResult.gicFinal, start, ", guaranteed");
+        setTile("p5", stats.p5, start);
+        setTile("p50", stats.p50, start);
+        setTile("p95", stats.p95, start);
+      }
+
+      function finishRun() {
+        frameId = null;
+        view = null;
+        renderResults(lastResult);
+        drawChart();
+        appEl.className = appEl.className.replace(" is-running", "");
+        progressEl.textContent = count(lastResult.n) + (lastResult.n === 1 ? " simulation" : " simulations");
+        runButton.textContent = "Run simulation";
+        runButton.disabled = readInputs(false) === null;
+        staleNote.hidden = !changedDuringRun;
       }
 
       function runSimulation() {
         var v = readInputs(true);
         if (!v) return;
+        if (frameId !== null) window.cancelAnimationFrame(frameId);
         lastResult = Sim.run({
           start: START,
           gicRate: v.gicRate / 100,
@@ -1593,9 +1774,39 @@
           count: v.count,
           years: YEARS
         });
-        renderResults(lastResult);
-        drawChart();
+        changedDuringRun = false;
         staleNote.hidden = true;
+        if (reduceMotion || !window.requestAnimationFrame) {
+          finishRun();
+          return;
+        }
+
+        var total = lastResult.n, t0 = null, lastK = -1, stats = null;
+        runButton.disabled = true;
+        runButton.textContent = "Simulating…";
+        if (appEl.className.indexOf("is-running") === -1) appEl.className += " is-running";
+        document.getElementById("chart-start").textContent = money(lastResult.params.start);
+        clearTiles();
+
+        function frame(now) {
+          if (t0 === null) t0 = now;
+          var p = (now - t0) / DURATION;
+          if (p >= 1) {
+            finishRun();
+            return;
+          }
+          var shown = total * p;
+          var k = Math.floor(shown);
+          if (k !== lastK) { // percentiles only change when another simulation finishes
+            stats = Sim.summarize(lastResult, k);
+            lastK = k;
+            showProgress(stats, total);
+          }
+          view = { shown: shown, stats: stats };
+          drawChart();
+          frameId = window.requestAnimationFrame(frame);
+        }
+        frameId = window.requestAnimationFrame(frame);
       }
 
       // ---------- Events ----------
@@ -1608,7 +1819,8 @@
       FIELDS.forEach(function (f) {
         document.getElementById(f.id).addEventListener("input", function () {
           showFieldState(f, checkField(f));
-          runButton.disabled = readInputs(false) === null;
+          if (frameId === null) runButton.disabled = readInputs(false) === null; // stays off mid-run
+          else changedDuringRun = true;
           if (lastResult) staleNote.hidden = false;
         });
       });
